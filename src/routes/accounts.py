@@ -22,6 +22,7 @@ from schemas import (
     UserRegistrationResponseSchema,
     UserRegistrationRequestSchema,
     UserActivationRequestSchema,
+    MessageResponseSchema, PasswordResetRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -75,9 +76,9 @@ async def register(
             )
 
 
-@router.post("/activate/")
+@router.post("/activate/", response_model=MessageResponseSchema)
 async def activate_account(
-    user_data: UserActivationRequestSchema, db: AsyncSession = Depends(get_db)
+    user_data: UserActivationRequestSchema,db: AsyncSession = Depends(get_db)
 ):
     user_result = await db.execute(
         select(UserModel)
@@ -116,4 +117,41 @@ async def activate_account(
     await db.delete(activation_token)
     await db.commit()
     await db.refresh(user)
-    return {"message": "User account activated successfully."}
+    return MessageResponseSchema(
+        message="User account activated successfully."
+    )
+
+
+@router.post("/password-reset/request/", response_model=MessageResponseSchema)
+async def password_reset_token_request(
+        request_data: PasswordResetRequestSchema,
+        db: AsyncSession = Depends(get_db)
+):
+    user_result = await db.execute(
+        select(UserModel)
+        .options(joinedload(UserModel.password_reset_token))
+        .where(UserModel.email == request_data.email)
+    )
+    user = user_result.scalar_one_or_none()
+
+    if user and user.is_active:
+        reset_token_db = user.password_reset_token
+        if reset_token_db:
+            await db.delete(reset_token_db)
+            await db.commit()
+
+        try:
+            reset_token = PasswordResetTokenModel(user=user)
+            db.add(reset_token)
+            await db.commit()
+            await db.refresh(reset_token)
+        except Exception:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred during password reset token.",
+            )
+
+    return MessageResponseSchema(
+        message="If you are registered, you will receive an email with instructions."
+    )

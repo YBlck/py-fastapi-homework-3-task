@@ -38,3 +38,12 @@ class UserActivationRequestSchema(BaseModel):
     model_config = {
         "from_attribute": True
     }
+
+
+class MessageResponseSchema(BaseModel):
+    message: str
+
+
+class PasswordResetRequestSchema(BaseModel):
+    email: EmailStr
+
