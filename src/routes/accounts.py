@@ -21,6 +21,7 @@ from exceptions import BaseSecurityError
 from schemas import (
     UserRegistrationResponseSchema,
     UserRegistrationRequestSchema,
+    UserActivationRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -49,7 +50,9 @@ async def register(
 
         try:
             group_result = await session.execute(
-                select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
+                select(UserGroupModel).where(
+                    UserGroupModel.name == UserGroupEnum.USER
+                )
             )
             group = group_result.scalar_one_or_none()
             new_user = UserModel.create(
@@ -70,3 +73,47 @@ async def register(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred during user creation.",
             )
+
+
+@router.post("/activate/")
+async def activate_account(
+    user_data: UserActivationRequestSchema, db: AsyncSession = Depends(get_db)
+):
+    user_result = await db.execute(
+        select(UserModel)
+        .options(joinedload(UserModel.activation_token))
+        .where(UserModel.email == user_data.email)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"A user with this email {user_data.email} does not exist.",
+        )
+
+    activation_token = user.activation_token
+
+    if user.is_active:
+        if activation_token:
+            await db.delete(activation_token)
+            await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account is already active.",
+        )
+
+    if (
+        not user.activation_token
+        or activation_token.token != user_data.token
+        or activation_token.expires_at < datetime.now()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired activation token.",
+        )
+
+    user.is_active = True
+    await db.delete(activation_token)
+    await db.commit()
+    await db.refresh(user)
+    return {"message": "User account activated successfully."}
