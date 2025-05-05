@@ -22,7 +22,9 @@ from schemas import (
     UserRegistrationResponseSchema,
     UserRegistrationRequestSchema,
     UserActivationRequestSchema,
-    MessageResponseSchema, PasswordResetRequestSchema,
+    MessageResponseSchema,
+    PasswordResetRequestSchema,
+    PasswordResetCompleteRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
 
@@ -56,6 +58,7 @@ async def register(
                 )
             )
             group = group_result.scalar_one_or_none()
+            # use UserModel method to create new user with hashed password
             new_user = UserModel.create(
                 email=user_data.email,
                 raw_password=user_data.password,
@@ -155,3 +158,49 @@ async def password_reset_token_request(
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
     )
+
+
+@router.post("/reset-password/complete/", response_model=MessageResponseSchema)
+async def password_reset_complete(
+        user_data: PasswordResetCompleteRequestSchema,
+        db: AsyncSession = Depends(get_db)
+):
+    async with db as session:
+        user_result = await session.execute(
+            select(UserModel)
+            .options(joinedload(UserModel.password_reset_token))
+            .where(UserModel.email == user_data.email)
+        )
+        user = user_result.scalar_one_or_none()
+
+        if not user or not user.password_reset_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email or token.",
+            )
+
+        if (
+                user.password_reset_token.token != user_data.token
+                or user.password_reset_token.expires_at < datetime.now()
+        ):
+            await session.delete(user.password_reset_token)
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email or token.",
+            )
+
+        try:
+            # use user.password setter in UserModel to validate and hash password
+            user.password = user_data.password
+            await session.delete(user.password_reset_token)
+            await session.commit()
+            return MessageResponseSchema(
+                message="Password reset successfully."
+            )
+        except Exception:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while resetting the password.",
+            )

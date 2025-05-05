@@ -7,9 +7,6 @@ class UserRegistrationRequestSchema(BaseModel):
     email: EmailStr
     password: str
 
-    model_config = {
-        "from_attribute": True
-    }
 
     @field_validator("email", mode="before")
     @classmethod
@@ -24,7 +21,7 @@ class UserRegistrationRequestSchema(BaseModel):
 
 class UserRegistrationResponseSchema(BaseModel):
     id: int
-    email: str
+    email: EmailStr
 
     model_config = {
         "from_attribute": True
@@ -32,12 +29,8 @@ class UserRegistrationResponseSchema(BaseModel):
 
 
 class UserActivationRequestSchema(BaseModel):
-    email: str
+    email: EmailStr
     token: str
-
-    model_config = {
-        "from_attribute": True
-    }
 
 
 class MessageResponseSchema(BaseModel):
@@ -46,4 +39,10 @@ class MessageResponseSchema(BaseModel):
 
 class PasswordResetRequestSchema(BaseModel):
     email: EmailStr
+
+
+class PasswordResetCompleteRequestSchema(BaseModel):
+    email: EmailStr
+    token: str
+    password: str
 
