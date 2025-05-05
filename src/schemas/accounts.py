@@ -46,3 +46,13 @@ class PasswordResetCompleteRequestSchema(BaseModel):
     token: str
     password: str
 
+
+class UserLoginRequestSchema(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserLoginResponseSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
