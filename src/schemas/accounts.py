@@ -7,7 +7,6 @@ class UserRegistrationRequestSchema(BaseModel):
     email: EmailStr
     password: str
 
-
     @field_validator("email", mode="before")
     @classmethod
     def validate_email(cls, value: str):
@@ -23,9 +22,7 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
 
-    model_config = {
-        "from_attribute": True
-    }
+    model_config = {"from_attribute": True}
 
 
 class UserActivationRequestSchema(BaseModel):
@@ -56,3 +53,11 @@ class UserLoginResponseSchema(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
+
+
+class TokenRefreshRequestSchema(BaseModel):
+    refresh_token: str
+
+
+class TokenRefreshResponseSchema(BaseModel):
+    access_token: str
