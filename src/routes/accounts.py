@@ -112,7 +112,8 @@ async def activate_account(
         if (
             not user.activation_token
             or activation_token.token != user_data.token
-            or activation_token.expires_at < datetime.now(timezone.utc)
+            or activation_token.expires_at.replace(tzinfo=timezone.utc)
+            < datetime.now(timezone.utc)
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -185,7 +186,10 @@ async def password_reset_complete(
 
         if (
             user.password_reset_token.token != user_data.token
-            or user.password_reset_token.expires_at < datetime.now(timezone.utc)
+            or user.password_reset_token.expires_at.replace(
+                tzinfo=timezone.utc
+            )
+            < datetime.now(timezone.utc)
         ):
             await session.delete(user.password_reset_token)
             await session.commit()
