@@ -1,12 +1,9 @@
 from datetime import datetime, timezone
-from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException
-from jose import jwt
-from sqlalchemy import select, delete
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import joinedload
 
 from config import get_jwt_auth_manager, get_settings, BaseAppSettings
 from database import (
@@ -18,7 +15,6 @@ from database import (
     PasswordResetTokenModel,
     RefreshTokenModel,
 )
-from exceptions import BaseSecurityError, TokenExpiredError
 from schemas import (
     UserRegistrationResponseSchema,
     UserRegistrationRequestSchema,
@@ -32,7 +28,6 @@ from schemas import (
     TokenRefreshRequestSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
-from security.token_manager import JWTAuthManager
 
 router = APIRouter()
 
@@ -63,6 +58,7 @@ async def register(
                     UserGroupModel.name == UserGroupEnum.USER
                 )
             )
+            # if there is no such group, error 500 will occur, no need to check, this is the logic of the task
             group = group_result.scalar_one_or_none()
             # use UserModel method to create new user with hashed password
             new_user = UserModel.create(
@@ -116,7 +112,7 @@ async def activate_account(
         if (
             not user.activation_token
             or activation_token.token != user_data.token
-            or activation_token.expires_at < datetime.now()
+            or activation_token.expires_at < datetime.now(timezone.utc)
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,7 +185,7 @@ async def password_reset_complete(
 
         if (
             user.password_reset_token.token != user_data.token
-            or user.password_reset_token.expires_at < datetime.now()
+            or user.password_reset_token.expires_at < datetime.now(timezone.utc)
         ):
             await session.delete(user.password_reset_token)
             await session.commit()
